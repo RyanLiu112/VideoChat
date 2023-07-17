@@ -31,13 +31,14 @@ def _cfg(url='', **kwargs):
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
     """
+
     def __init__(self, drop_prob=None):
         super(DropPath, self).__init__()
         self.drop_prob = drop_prob
 
     def forward(self, x):
         return drop_path(x, self.drop_prob, self.training)
-    
+
     def extra_repr(self):
         return 'p={}'.format(self.drop_prob)
 
@@ -56,7 +57,7 @@ class Mlp(nn.Module):
         x = self.fc1(x)
         x = self.act(x)
         # x = self.drop(x)
-        # commit this for the orignal BERT implement 
+        # commit this for the original BERT implement
         x = self.fc2(x)
         x = self.drop(x)
         return x
@@ -64,7 +65,7 @@ class Mlp(nn.Module):
 
 class Local_MHRA(nn.Module):
     def __init__(self, d_model, dw_reduction=1.5, pos_kernel_size=3):
-        super().__init__() 
+        super().__init__()
 
         padding = pos_kernel_size // 2
         re_d_model = int(d_model // dw_reduction)
@@ -87,8 +88,9 @@ class Local_MHRA(nn.Module):
 
 class Attention(nn.Module):
     def __init__(
-            self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0.,
-            proj_drop=0., window_size=None, attn_head_dim=None):
+        self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0.,
+        proj_drop=0., window_size=None, attn_head_dim=None
+    ):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
@@ -109,7 +111,8 @@ class Attention(nn.Module):
             self.window_size = window_size
             self.num_relative_distance = (2 * window_size[0] - 1) * (2 * window_size[1] - 1) + 3
             self.relative_position_bias_table = nn.Parameter(
-                torch.zeros(self.num_relative_distance, num_heads))  # 2*Wh-1 * 2*Ww-1, nH
+                torch.zeros(self.num_relative_distance, num_heads)
+            )  # 2*Wh-1 * 2*Ww-1, nH
             # cls to token & token 2 cls & cls to cls
 
             # get pair-wise relative position index for each token inside the window
@@ -123,7 +126,7 @@ class Attention(nn.Module):
             relative_coords[:, :, 1] += window_size[1] - 1
             relative_coords[:, :, 0] *= 2 * window_size[1] - 1
             relative_position_index = \
-                torch.zeros(size=(window_size[0] * window_size[1] + 1, ) * 2, dtype=relative_coords.dtype)
+                torch.zeros(size=(window_size[0] * window_size[1] + 1,) * 2, dtype=relative_coords.dtype)
             relative_position_index[1:, 1:] = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
             relative_position_index[0, 0:] = self.num_relative_distance - 3
             relative_position_index[0:, 0] = self.num_relative_distance - 2
@@ -147,7 +150,7 @@ class Attention(nn.Module):
         # qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         qkv = F.linear(input=x, weight=self.qkv.weight, bias=qkv_bias)
         qkv = qkv.reshape(B, N, 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
@@ -156,13 +159,14 @@ class Attention(nn.Module):
             relative_position_bias = \
                 self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
                     self.window_size[0] * self.window_size[1] + 1,
-                    self.window_size[0] * self.window_size[1] + 1, -1)  # Wh*Ww,Wh*Ww,nH
+                    self.window_size[0] * self.window_size[1] + 1, -1
+                )  # Wh*Ww,Wh*Ww,nH
             relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
             attn = attn + relative_position_bias.unsqueeze(0)
 
         if rel_pos_bias is not None:
             attn = attn + rel_pos_bias
-        
+
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
@@ -173,11 +177,13 @@ class Attention(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., init_values=None, act_layer=nn.GELU, norm_layer=nn.LayerNorm,
-                 window_size=None, attn_head_dim=None,
-                 no_lmhra=False, double_lmhra=True, lmhra_reduction=2.0, 
-                 ):
+
+    def __init__(
+        self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
+        drop_path=0., init_values=None, act_layer=nn.GELU, norm_layer=nn.LayerNorm,
+        window_size=None, attn_head_dim=None,
+        no_lmhra=False, double_lmhra=True, lmhra_reduction=2.0,
+    ):
         super().__init__()
         self.no_lmhra = no_lmhra
         self.double_lmhra = double_lmhra
@@ -189,7 +195,8 @@ class Block(nn.Module):
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
-            attn_drop=attn_drop, proj_drop=drop, window_size=window_size, attn_head_dim=attn_head_dim)
+            attn_drop=attn_drop, proj_drop=drop, window_size=window_size, attn_head_dim=attn_head_dim
+        )
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -197,8 +204,8 @@ class Block(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
         if init_values is not None and init_values > 0:
-            self.gamma_1 = nn.Parameter(init_values * torch.ones((dim)),requires_grad=True)
-            self.gamma_2 = nn.Parameter(init_values * torch.ones((dim)),requires_grad=True)
+            self.gamma_1 = nn.Parameter(init_values * torch.ones((dim)), requires_grad=True)
+            self.gamma_2 = nn.Parameter(init_values * torch.ones((dim)), requires_grad=True)
         else:
             self.gamma_1, self.gamma_2 = None, None
 
@@ -234,13 +241,13 @@ class Block(nn.Module):
             x = x + self.drop_path(self.mlp(self.norm2(x)))
         else:
             x = x + self.drop_path(self.gamma_2 * self.mlp(self.norm2(x)))
-        
         return x
 
 
 class PatchEmbed(nn.Module):
     """ Image to Patch Embedding
     """
+
     def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768, temporal_downsample=False):
         super().__init__()
         img_size = to_2tuple(img_size)
@@ -252,12 +259,12 @@ class PatchEmbed(nn.Module):
         self.num_patches = num_patches
         if temporal_downsample:
             self.proj = nn.Conv3d(
-                in_chans, embed_dim, kernel_size=(3, patch_size[0], patch_size[1]), 
+                in_chans, embed_dim, kernel_size=(3, patch_size[0], patch_size[1]),
                 stride=(2, patch_size[0], patch_size[1]), padding=(1, 0, 0)
             )
         else:
             self.proj = nn.Conv3d(
-                in_chans, embed_dim, kernel_size=(1, patch_size[0], patch_size[1]), 
+                in_chans, embed_dim, kernel_size=(1, patch_size[0], patch_size[1]),
                 stride=(1, patch_size[0], patch_size[1]), padding=(0, 0, 0)
             )
 
@@ -276,7 +283,8 @@ class RelativePositionBias(nn.Module):
         self.window_size = window_size
         self.num_relative_distance = (2 * window_size[0] - 1) * (2 * window_size[1] - 1) + 3
         self.relative_position_bias_table = nn.Parameter(
-            torch.zeros(self.num_relative_distance, num_heads))  # 2*Wh-1 * 2*Ww-1, nH
+            torch.zeros(self.num_relative_distance, num_heads)
+        )  # 2*Wh-1 * 2*Ww-1, nH
         # cls to token & token 2 cls & cls to cls
 
         # get pair-wise relative position index for each token inside the window
@@ -304,15 +312,16 @@ class RelativePositionBias(nn.Module):
         relative_position_bias = \
             self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
                 self.window_size[0] * self.window_size[1] + 1,
-                self.window_size[0] * self.window_size[1] + 1, -1)  # Wh*Ww,Wh*Ww,nH
+                self.window_size[0] * self.window_size[1] + 1, -1
+            )  # Wh*Ww,Wh*Ww,nH
         return relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
 
 
 class Global_MHRA(nn.Module):
     def __init__(
-            self, d_model, n_head, attn_mask=None,
-            mlp_factor=4.0, drop_path=0., dropout=0.,
-        ):
+        self, d_model, n_head, attn_mask=None,
+        mlp_factor=4.0, drop_path=0., dropout=0.,
+    ):
         super().__init__()
         print(f'Drop path rate: {drop_path}')
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -380,15 +389,17 @@ class Global_MHRA(nn.Module):
 class VisionTransformer(nn.Module):
     """ Vision Transformer with support for patch or hybrid CNN input stage
     """
-    def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dim=768, depth=12,
-                 num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
-                 drop_path_rate=0., norm_layer=nn.LayerNorm, init_values=None,
-                 use_abs_pos_emb=True, use_rel_pos_bias=False, use_shared_rel_pos_bias=False,
-                 use_mean_pooling=True, init_scale=0.001, use_checkpoint=False,
-                 temporal_downsample=True,
-                 no_lmhra=False, double_lmhra=True, lmhra_reduction=1.5, 
-                 gmhra_layers=4, gmhra_drop_path_rate=0., gmhra_dropout=0.5, 
-                 ):
+
+    def __init__(
+        self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dim=768, depth=12,
+        num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
+        drop_path_rate=0., norm_layer=nn.LayerNorm, init_values=None,
+        use_abs_pos_emb=True, use_rel_pos_bias=False, use_shared_rel_pos_bias=False,
+        use_mean_pooling=True, init_scale=0.001, use_checkpoint=False,
+        temporal_downsample=True,
+        no_lmhra=False, double_lmhra=True, lmhra_reduction=1.5,
+        gmhra_layers=4, gmhra_drop_path_rate=0., gmhra_dropout=0.5,
+    ):
         super().__init__()
         self.image_size = img_size
         self.num_classes = num_classes
@@ -413,7 +424,7 @@ class VisionTransformer(nn.Module):
         else:
             self.rel_pos_bias = None
         self.use_checkpoint = use_checkpoint
-        
+
         print(f'No L_MHRA: {no_lmhra}')
         print(f'Double L_MHRA: {double_lmhra}')
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
@@ -423,9 +434,9 @@ class VisionTransformer(nn.Module):
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
                 init_values=init_values, window_size=self.patch_embed.patch_shape if use_rel_pos_bias else None,
-                no_lmhra=no_lmhra, double_lmhra=double_lmhra, lmhra_reduction=lmhra_reduction, 
-            )
-            for i in range(depth)])
+                no_lmhra=no_lmhra, double_lmhra=double_lmhra, lmhra_reduction=lmhra_reduction,
+            ) for i in range(depth)
+        ])
 
         # global MHRA
         self.gmhra_layers = gmhra_layers
@@ -437,7 +448,7 @@ class VisionTransformer(nn.Module):
         gmhra_dpr = [x.item() for x in torch.linspace(0, gmhra_drop_path_rate, gmhra_layers)]
         self.gmhra = nn.ModuleList([
             Global_MHRA(
-                embed_dim, num_heads, mlp_factor=mlp_ratio, 
+                embed_dim, num_heads, mlp_factor=mlp_ratio,
                 drop_path=gmhra_dpr[i], dropout=gmhra_dropout,
             ) for i in range(gmhra_layers)
         ])
@@ -487,8 +498,8 @@ class VisionTransformer(nn.Module):
     def forward(self, x):
         x = self.forward_features(x)
         return x
-    
-    
+
+
 def interpolate_pos_embed(model, checkpoint_model):
     if 'pos_embed' in checkpoint_model:
         pos_embed_checkpoint = checkpoint_model['pos_embed'].float()
@@ -507,21 +518,23 @@ def interpolate_pos_embed(model, checkpoint_model):
             pos_tokens = pos_embed_checkpoint[:, num_extra_tokens:]
             pos_tokens = pos_tokens.reshape(-1, orig_size, orig_size, embedding_size).permute(0, 3, 1, 2)
             pos_tokens = torch.nn.functional.interpolate(
-                pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
+                pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False
+            )
             pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
             new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
             checkpoint_model['pos_embed'] = new_pos_embed
-            
-            
+
+
 def convert_weights_to_fp16(model: nn.Module):
     """Convert applicable model parameters to fp16"""
+
     def _convert_weights_to_fp16(l):
         if isinstance(l, (nn.Conv1d, nn.Conv2d, nn.Linear)):
             l.weight.data = l.weight.data.half()
             if l.bias is not None:
                 l.bias.data = l.bias.data.half()
     model.apply(_convert_weights_to_fp16)
-    
+
 
 def inflate_weight(weight_2d, time_dim, center=True):
     print(f'Init center: {center}')
@@ -548,49 +561,49 @@ def load_state_dict(model, state_dict, strict=True):
             state_dict[k] = inflate_weight(state_dict[k], time_dim)
     msg = model.load_state_dict(state_dict, strict=strict)
     return msg
-    
+
 
 def create_eva_vit_g(
-        img_size=224, drop_path_rate=0.4, use_checkpoint=False,
-        precision="fp16", vit_model_path=None,
-        # UniFormerV2
-        temporal_downsample=True,
-        no_lmhra=False, 
-        double_lmhra=False,
-        lmhra_reduction=2.0, 
-        gmhra_layers=8, 
-        gmhra_drop_path_rate=0.,
-        gmhra_dropout=0.5, 
-    ):
+    img_size=224, drop_path_rate=0.4, use_checkpoint=False,
+    precision="fp16", vit_model_path=None,
+    # UniFormerV2
+    temporal_downsample=True,
+    no_lmhra=False,
+    double_lmhra=False,
+    lmhra_reduction=2.0,
+    gmhra_layers=8,
+    gmhra_drop_path_rate=0.,
+    gmhra_dropout=0.5,
+):
     model = VisionTransformer(
         img_size=img_size,
         patch_size=14,
         use_mean_pooling=False,
         embed_dim=1408,
         depth=39,
-        num_heads=1408//88,
+        num_heads=1408 // 88,
         mlp_ratio=4.3637,
         qkv_bias=True,
         drop_path_rate=drop_path_rate,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
         use_checkpoint=use_checkpoint,
         temporal_downsample=temporal_downsample,
-        no_lmhra=no_lmhra, 
+        no_lmhra=no_lmhra,
         double_lmhra=double_lmhra,
-        lmhra_reduction=lmhra_reduction, 
-        gmhra_layers=gmhra_layers, 
+        lmhra_reduction=lmhra_reduction,
+        gmhra_layers=gmhra_layers,
         gmhra_drop_path_rate=gmhra_drop_path_rate,
-        gmhra_dropout=gmhra_dropout, 
-    )  
+        gmhra_dropout=gmhra_dropout,
+    )
     if vit_model_path is not None and os.path.isfile(vit_model_path):
-        state_dict = torch.load(vit_model_path, map_location="cpu")    
+        state_dict = torch.load(vit_model_path, map_location="cpu")
         print(f"Load ViT model from: {vit_model_path}")
         interpolate_pos_embed(model, state_dict)
         msg = load_state_dict(model, state_dict, strict=False)
         print(msg)
-    
+
     if precision == "fp16":
-#         model.to("cuda") 
+        # model.to("cuda")
         convert_weights_to_fp16(model)
     return model
 
@@ -612,15 +625,15 @@ if __name__ == '__main__':
         img_size=224, drop_path_rate=0.4, use_checkpoint=False,
         precision="fp16", vit_model_path=None,
         temporal_downsample=True,
-        no_lmhra=False, 
+        no_lmhra=False,
         double_lmhra=False,
-        lmhra_reduction=2.0, 
+        lmhra_reduction=2.0,
         gmhra_layers=12,
         gmhra_drop_path_rate=0.,
-        gmhra_dropout=0.5, 
+        gmhra_dropout=0.5,
     )
     video = torch.rand(1, 3, num_frames, 224, 224)
     flops = FlopCountAnalysis(model, video)
     s = time.time()
     print(flop_count_table(flops, max_depth=1))
-    print(time.time()-s)
+    print(time.time() - s)

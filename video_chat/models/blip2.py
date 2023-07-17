@@ -25,7 +25,7 @@ class Blip2Base(nn.Module):
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         tokenizer.add_special_tokens({"bos_token": "[DEC]"})
         return tokenizer
-    
+
     @property
     def device(self):
         return list(self.parameters())[0].device
@@ -42,8 +42,8 @@ class Blip2Base(nn.Module):
 
     @classmethod
     def init_Qformer(
-        cls, 
-        num_query_token, vision_width, 
+        cls,
+        num_query_token, vision_width,
         qformer_hidden_dropout_prob=0.,
         qformer_attention_probs_dropout_prob=0.,
         qformer_drop_path_rate=0.,
@@ -68,28 +68,28 @@ class Blip2Base(nn.Module):
 
     @classmethod
     def init_vision_encoder(
-        cls, 
-        model_name, img_size, drop_path_rate, 
+        cls,
+        model_name, img_size, drop_path_rate,
         use_grad_checkpoint, precision, vit_model_path,
         temporal_downsample=True,
-        no_lmhra=False, 
+        no_lmhra=False,
         double_lmhra=False,
-        lmhra_reduction=2.0, 
-        gmhra_layers=8, 
+        lmhra_reduction=2.0,
+        gmhra_layers=8,
         gmhra_drop_path_rate=0.,
-        gmhra_dropout=0.5, 
+        gmhra_dropout=0.5,
     ):
         assert model_name == "eva_clip_g", "vit model must be eva_clip_g for current version of VideoChat"
         visual_encoder = create_eva_vit_g(
-            img_size, drop_path_rate, 
+            img_size, drop_path_rate,
             use_grad_checkpoint, precision, vit_model_path,
             temporal_downsample=temporal_downsample,
-            no_lmhra=no_lmhra, 
+            no_lmhra=no_lmhra,
             double_lmhra=double_lmhra,
-            lmhra_reduction=lmhra_reduction, 
-            gmhra_layers=gmhra_layers, 
+            lmhra_reduction=lmhra_reduction,
+            gmhra_layers=gmhra_layers,
             gmhra_drop_path_rate=gmhra_drop_path_rate,
-            gmhra_dropout=gmhra_dropout, 
+            gmhra_dropout=gmhra_dropout,
         )
 
         ln_vision = LayerNorm(visual_encoder.num_features)

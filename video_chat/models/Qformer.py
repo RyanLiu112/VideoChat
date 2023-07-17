@@ -89,9 +89,7 @@ class BertEmbeddings(nn.Module):
             seq_length = 0
 
         if position_ids is None:
-            position_ids = self.position_ids[
-                :, past_key_values_length : seq_length + past_key_values_length
-            ].clone()
+            position_ids = self.position_ids[:, past_key_values_length: seq_length + past_key_values_length].clone()
 
         if input_ids is not None:
             embeddings = self.word_embeddings(input_ids)
@@ -274,18 +272,19 @@ class BertSelfAttention(nn.Module):
 
         outputs = outputs + (past_key_value,)
         return outputs
-    
-    
+
+
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
     """
+
     def __init__(self, drop_prob=None):
         super(DropPath, self).__init__()
         self.drop_prob = drop_prob
 
     def forward(self, x):
         return drop_path(x, self.drop_prob, self.training)
-    
+
     def extra_repr(self) -> str:
         return 'p={}'.format(self.drop_prob)
 
@@ -307,7 +306,7 @@ class BertSelfOutput(nn.Module):
 
 
 class BertAttention(nn.Module):
-    def __init__(self, config, is_cross_attention=False, drop_path=0.,):
+    def __init__(self, config, is_cross_attention=False, drop_path=0., ):
         super().__init__()
         self.self = BertSelfAttention(config, is_cross_attention)
         self.output = BertSelfOutput(config, drop_path=drop_path)
@@ -357,9 +356,7 @@ class BertAttention(nn.Module):
         )
         attention_output = self.output(self_outputs[0], hidden_states)
 
-        outputs = (attention_output,) + self_outputs[
-            1:
-        ]  # add attentions if we output them
+        outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
         return outputs
 
 
@@ -987,7 +984,6 @@ class BertModel(BertPreTrainedModel):
 
 
 class BertLMHeadModel(BertPreTrainedModel):
-
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
     _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias"]
 
@@ -1082,7 +1078,7 @@ class BertLMHeadModel(BertPreTrainedModel):
 
         sequence_output = outputs[0]
         if query_embeds is not None:
-            sequence_output = outputs[0][:, query_embeds.shape[1] :, :]
+            sequence_output = outputs[0][:, query_embeds.shape[1]:, :]
 
         prediction_scores = self.cls(sequence_output)
 
@@ -1150,7 +1146,6 @@ class BertLMHeadModel(BertPreTrainedModel):
 
 
 class BertForMaskedLM(BertPreTrainedModel):
-
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
     _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias"]
 
@@ -1210,7 +1205,7 @@ class BertForMaskedLM(BertPreTrainedModel):
         )
 
         if query_embeds is not None:
-            sequence_output = outputs[0][:, query_embeds.shape[1] :, :]
+            sequence_output = outputs[0][:, query_embeds.shape[1]:, :]
         prediction_scores = self.cls(sequence_output)
 
         if return_logits:

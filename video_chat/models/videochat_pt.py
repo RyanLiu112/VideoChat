@@ -16,6 +16,7 @@ class VideoChat_pt(Blip2Base):
     """
     VideoChat model.
     """
+
     def __init__(self, config):
         super().__init__()
         # pretrained_path
@@ -23,7 +24,7 @@ class VideoChat_pt(Blip2Base):
         vit_model_path = config.get("vit_model_path", None)
         q_former_model_path = config.get("q_former_model_path", None)
         llama_model_path = config.get("llama_model_path")
-        videochat_model_path = config.get("videochat_model_path", "")  
+        videochat_model_path = config.get("videochat_model_path", "")
         freeze_vit = config.get("freeze_vit", True)
         freeze_qformer = config.get("freeze_qformer", True)
         # vit
@@ -31,7 +32,7 @@ class VideoChat_pt(Blip2Base):
         drop_path_rate = config.get("drop_path_rate", 0)
         use_grad_checkpoint = config.get("use_grad_checkpoint", False)
         vit_precision = config.get("vit_precision", "fp16")
-        low_resource = config.get("low_resource", False) # use 8 bit and put vit in cpu
+        low_resource = config.get("low_resource", False)  # use 8 bit and put vit in cpu
         # uniformerv2
         freeze_mhra = config.get("freeze_mhra", False)
         temporal_downsample = config.get("temporal_downsample", True)
@@ -62,15 +63,15 @@ class VideoChat_pt(Blip2Base):
         self.vit_precision = vit_precision
         logger.info(f'Loading VIT. Use fp16: {vit_precision}')
         self.visual_encoder, self.ln_vision = self.init_vision_encoder(
-            vit_model, img_size, drop_path_rate, 
+            vit_model, img_size, drop_path_rate,
             use_grad_checkpoint, vit_precision, vit_model_path,
             temporal_downsample=temporal_downsample,
-            no_lmhra=no_lmhra, 
+            no_lmhra=no_lmhra,
             double_lmhra=double_lmhra,
-            lmhra_reduction=lmhra_reduction, 
-            gmhra_layers=gmhra_layers, 
+            lmhra_reduction=lmhra_reduction,
+            gmhra_layers=gmhra_layers,
             gmhra_drop_path_rate=gmhra_drop_path_rate,
-            gmhra_dropout=gmhra_dropout, 
+            gmhra_dropout=gmhra_dropout,
         )
         if freeze_vit:
             logger.info("freeze vision encoder")
@@ -190,7 +191,7 @@ class VideoChat_pt(Blip2Base):
         with self.maybe_autocast():
             T = image.shape[1]
             use_image = True if T == 1 else False
-            image = image.permute(0, 2, 1, 3, 4) # [B,T,C,H,W] -> [B,C,T,H,W]
+            image = image.permute(0, 2, 1, 3, 4)  # [B,T,C,H,W] -> [B,C,T,H,W]
 
             image_embeds = self.ln_vision(self.visual_encoder(image)).to(device)
             image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(device)
@@ -216,9 +217,11 @@ class VideoChat_pt(Blip2Base):
             else:
                 p_before, p_after = prompt.split('<VideoHere>')
             p_before_tokens = self.llama_tokenizer(
-                p_before, return_tensors="pt", add_special_tokens=False).to(img_embeds.device)
+                p_before, return_tensors="pt", add_special_tokens=False
+            ).to(img_embeds.device)
             p_after_tokens = self.llama_tokenizer(
-                p_after, return_tensors="pt", add_special_tokens=False).to(img_embeds.device)
+                p_after, return_tensors="pt", add_special_tokens=False
+            ).to(img_embeds.device)
             p_before_embeds = self.llama_model.model.embed_tokens(p_before_tokens.input_ids).expand(batch_size, -1, -1)
             p_after_embeds = self.llama_model.model.embed_tokens(p_after_tokens.input_ids).expand(batch_size, -1, -1)
             wrapped_img_embeds = torch.cat([p_before_embeds, img_embeds, p_after_embeds], dim=1)
@@ -253,15 +256,19 @@ class VideoChat_pt(Blip2Base):
         )
 
         empty_targets = (
-            torch.ones([atts_img.shape[0], atts_img.shape[1]+1],
-                    dtype=torch.long).to(image.device).fill_(-100)  # plus one for bos
+            torch.ones(
+                [atts_img.shape[0], atts_img.shape[1] + 1],
+                dtype=torch.long
+            ).to(image.device).fill_(-100)  # plus one for bos
         )
         targets = torch.cat([empty_targets, targets], dim=1)
 
         batch_size = img_embeds.shape[0]
-        bos = torch.ones([batch_size, 1],
-                         dtype=to_regress_tokens.input_ids.dtype,
-                         device=to_regress_tokens.input_ids.device) * self.llama_tokenizer.bos_token_id
+        bos = torch.ones(
+            [batch_size, 1],
+            dtype=to_regress_tokens.input_ids.dtype,
+            device=to_regress_tokens.input_ids.device
+        ) * self.llama_tokenizer.bos_token_id
         bos_embeds = self.llama_model.model.embed_tokens(bos)
         atts_bos = atts_img[:, :1]
 
@@ -276,7 +283,7 @@ class VideoChat_pt(Blip2Base):
                 return_dict=True,
                 labels=targets,
             )
-    
+
         return dict(
             loss=outputs.loss,
         )

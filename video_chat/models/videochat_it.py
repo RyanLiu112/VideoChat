@@ -16,6 +16,7 @@ class VideoChat_it(Blip2Base):
     """
     VideoChat model.
     """
+
     def __init__(self, config):
         super().__init__()
         # pretrained_path
@@ -23,7 +24,7 @@ class VideoChat_it(Blip2Base):
         vit_model_path = config.get("vit_model_path", None)
         q_former_model_path = config.get("q_former_model_path", None)
         llama_model_path = config.get("llama_model_path")
-        videochat_model_path = config.get("videochat_model_path", "")  
+        videochat_model_path = config.get("videochat_model_path", "")
         freeze_vit = config.get("freeze_vit", True)
         freeze_qformer = config.get("freeze_qformer", True)
         # vit
@@ -31,7 +32,7 @@ class VideoChat_it(Blip2Base):
         drop_path_rate = config.get("drop_path_rate", 0)
         use_grad_checkpoint = config.get("use_grad_checkpoint", False)
         vit_precision = config.get("vit_precision", "fp16")
-        low_resource = config.get("low_resource", False) # use 8 bit and put vit in cpu
+        low_resource = config.get("low_resource", False)  # use 8 bit and put vit in cpu
         # uniformerv2
         freeze_mhra = config.get("freeze_mhra", False)
         temporal_downsample = config.get("temporal_downsample", True)
@@ -64,15 +65,15 @@ class VideoChat_it(Blip2Base):
         self.vit_precision = vit_precision
         logger.info(f'Loading VIT. Use fp16: {vit_precision}')
         self.visual_encoder, self.ln_vision = self.init_vision_encoder(
-            vit_model, img_size, drop_path_rate, 
+            vit_model, img_size, drop_path_rate,
             use_grad_checkpoint, vit_precision, vit_model_path,
             temporal_downsample=temporal_downsample,
-            no_lmhra=no_lmhra, 
+            no_lmhra=no_lmhra,
             double_lmhra=double_lmhra,
-            lmhra_reduction=lmhra_reduction, 
-            gmhra_layers=gmhra_layers, 
+            lmhra_reduction=lmhra_reduction,
+            gmhra_layers=gmhra_layers,
             gmhra_drop_path_rate=gmhra_drop_path_rate,
-            gmhra_dropout=gmhra_dropout, 
+            gmhra_dropout=gmhra_dropout,
         )
         if freeze_vit:
             logger.info("freeze vision encoder")
@@ -183,7 +184,7 @@ class VideoChat_it(Blip2Base):
         with self.maybe_autocast():
             T = image.shape[1]
             use_image = True if T == 1 else False
-            image = image.permute(0, 2, 1, 3, 4) # [B,T,C,H,W] -> [B,C,T,H,W]
+            image = image.permute(0, 2, 1, 3, 4)  # [B,T,C,H,W] -> [B,C,T,H,W]
 
             image_embeds = self.ln_vision(self.visual_encoder(image)).to(device)
             image_atts = torch.ones(image_embeds.size()[:-1], dtype=torch.long).to(device)
@@ -199,7 +200,7 @@ class VideoChat_it(Blip2Base):
 
             inputs_llama = self.llama_proj(query_output.last_hidden_state)
         return inputs_llama, use_image
-        
+
     def _get_text_len(self, text):
         return self.llama_tokenizer(text, return_tensors="pt", add_special_tokens=False).input_ids.shape[1]
 
@@ -243,11 +244,11 @@ class VideoChat_it(Blip2Base):
             sep_len = self._get_text_len(sep1.rstrip())
             cur_len = self._get_text_len(raw_text[0].rstrip())
             answer_targets[:, :system_len] = -100
-            answer_targets[:, (system_len+sep_len):cur_len] = -100
-            for text in raw_text[1:-1]: 
+            answer_targets[:, (system_len + sep_len):cur_len] = -100
+            for text in raw_text[1:-1]:
                 total_len = self._get_text_len(text.rstrip())
-                ans_len = self._get_text_len((text.split(sep1)[0]+sep1).rstrip())
-                answer_targets[:, (cur_len+ans_len):(cur_len+total_len)] = -100
+                ans_len = self._get_text_len((text.split(sep1)[0] + sep1).rstrip())
+                answer_targets[:, (cur_len + ans_len):(cur_len + total_len)] = -100
                 cur_len += total_len
             cur_len += self._get_text_len(raw_text[-1].rstrip())
             assert cur_len == answer_targets.shape[1], f"The final length is not equal to the original prompt: {prompt}"
@@ -256,7 +257,7 @@ class VideoChat_it(Blip2Base):
             input_embed_list.append(input_embeds)
             p_before_len_list.append(p_before_tokens.input_ids.shape[1])
             target_list.append(answer_targets)
-        
+
         # plus one for bos
         # max_txt_len plus num_query_token is the max len
         txt_len = min(max_len + 1, self.max_txt_len + img_len)
@@ -270,12 +271,12 @@ class VideoChat_it(Blip2Base):
             input_len = min(input_embed_list[idx].shape[1], txt_len - 1)
             # if less than txt_len, the input will be padding
             # if more than txt_len, the input will be truncated
-            inputs_embeds[idx, 1:(input_len+1)] = input_embed_list[idx][:, :input_len]
+            inputs_embeds[idx, 1:(input_len + 1)] = input_embed_list[idx][:, :input_len]
             # the attention_mask is 0 when padding
-            attention_mask[idx, :(input_len+1)] = 1
+            attention_mask[idx, :(input_len + 1)] = 1
             # the target is -100 when padding
             p_before_len = p_before_len_list[idx]
-            targets[idx, (p_before_len+img_len+1):(input_len+1)] = target_list[idx][0, :(input_len-p_before_len-img_len)]
+            targets[idx, (p_before_len + img_len + 1):(input_len + 1)] = target_list[idx][0, :(input_len - p_before_len - img_len)]
 
         with self.maybe_autocast():
             outputs = self.llama_model(
@@ -284,7 +285,7 @@ class VideoChat_it(Blip2Base):
                 return_dict=True,
                 labels=targets,
             )
-    
+
         return dict(
             loss=outputs.loss,
         )

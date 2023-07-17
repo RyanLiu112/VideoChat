@@ -1,10 +1,10 @@
 {
   "model": {
     "vit_model": "eva_clip_g",
-    "vit_model_path": "model/eva_vit_g.pth",
-    "q_former_model_path": "model/blip2_pretrained_flant5xxl.pth",
-    "llama_model_path": "model/vicuna-7b-v0",
-    "videochat_model_path": "model/videochat.pth",
+    "vit_model_path": "~/model/eva_vit_g.pth",
+    "q_former_model_path": "~/model/blip2_pretrained_flant5xxl.pth",
+    "llama_model_path": "~/model/vicuna-7b-v0",
+    "videochat_model_path": "~/model/videochat.pth",
     "img_size": 224,
     "num_query_token": 32,
     "drop_path_rate": 0.0,
